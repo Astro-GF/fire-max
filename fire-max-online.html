@@ -2016,7 +2016,7 @@ function remoteFor(id){
 }
 function updRemote(m){
   if(m.ch!==undefined)roomLook[m.id]=m.ch;
-  if(m.hd&&!S.hosting){S.hostId=m.id;if(m.go&&m.go!==lastGo&&S.phase==='lobby'&&!S.queue){lastGo=m.go;sqApply(m.sq);sqGo();return;}if(m.sq&&S.phase==='lobby'&&!S.queue)sqApply(m.sq);}
+  {const q=!S.hosting?sqUnpack(m):null;if(q){S.hostId=m.id;if(q.go&&q.go!==lastGo&&S.phase==='lobby'&&!S.queue){lastGo=q.go;sqApply(q.sq);sqGo();return;}if(q.sq&&S.phase==='lobby'&&!S.queue)sqApply(q.sq);}}
   if(m.lb)return;
   const r=remoteFor(m.id);if(!r)return;
   r.tx=m.x;r.ty=m.y;r.tz=m.z;r.ry=m.ry;r.alive=m.alive;
@@ -2038,7 +2038,13 @@ function sqMates(){const me=myId();return roomMembers.filter(x=>x.id!==me);}
 function sqIsMember(){return roomMembers.length>1&&!S.hosting;}
 function sqCfg(){return{mode:S.mode,sub:S.sub||'solo',cb:S.cb,cz:S.cz,cn:S.cn?1:0};}
 function sqApply(c){if(!c)return;S.mode=c.mode;S.sub=c.sub;if(c.cb!=null)S.cb=c.cb;if(c.cz!=null)S.cz=c.cz;S.cn=!!c.cn;sqUI();try{$('modeBtn').textContent='🎮 '+getCfg().n+'  ▾';}catch(_){}}
-function sqBroadcast(){if(S.hosting&&netOK()&&roomMembers.length>1)netSend({t:'state',lb:1,hd:1,sq:sqCfg(),ch:S.char,x:0,y:0,z:0,ry:0,anim:'idle',weapon:'soco',alive:true});}
+function sqPack(go){const j='FMSQ'+JSON.stringify({s:sqCfg(),g:go||0});return{hd:1,sq:sqCfg(),go:go||undefined,anim:j,weapon:j};}
+function sqUnpack(m){
+  if(m.hd&&m.sq)return m;
+  for(const f of [m.anim,m.weapon]){if(typeof f==='string'&&f.startsWith('FMSQ')){try{const o=JSON.parse(f.slice(4));return{id:m.id,hd:1,sq:o.s,go:o.g||0};}catch(_){}}}
+  return null;
+}
+function sqBroadcast(){if(S.hosting&&netOK()&&roomMembers.length>1)netSend(Object.assign({t:'state',lb:1,ch:S.char,x:0,y:0,z:0,ry:0,alive:true},sqPack()));}
 function sqNote(t){sqMsg=t||'';clearTimeout(sqMsgT);sqMsgT=setTimeout(()=>{sqMsg='';renderSquad();},4000);renderSquad();}
 function squadInvite(id){
   if(!netOK()){sqNote('Sem conexão com o servidor');return;}
@@ -2184,7 +2190,7 @@ function playClick(){
   }
   if(S.hosting&&roomMembers.length>1){
     const go=Date.now();let n=0;
-    const send=()=>netSend({t:'state',lb:1,hd:1,go:go,sq:sqCfg(),ch:S.char,x:0,y:0,z:0,ry:0,anim:'idle',weapon:'soco',alive:true});
+    const send=()=>netSend(Object.assign({t:'state',lb:1,ch:S.char,x:0,y:0,z:0,ry:0,alive:true},sqPack(go)));
     send();const iv=setInterval(()=>{send();if(++n>=4)clearInterval(iv);},400);
   }
   launch();
@@ -2224,7 +2230,7 @@ function netFrame(dt){
   if(player&&S.phase!=='lobby'&&netOK()){
     netT+=dt;
     if(netT>=.1){netT=0;netSend({t:'state',x:player.pos.x,y:player.pos.y,z:player.pos.z,ry:player.g.rotation.y,anim:player.curL,weapon:wpn(player),alive:player.alive!==false,ch:S.char});}
-  }else if(S.phase==='lobby'&&netOK()&&roomMembers.length){netT+=dt;if(netT>=1){netT=0;netSend(Object.assign({t:'state',lb:1,ch:S.char,x:0,y:0,z:0,ry:0,anim:'idle',weapon:'soco',alive:true},S.hosting?{hd:1,sq:sqCfg()}:{}));}}
+  }else if(S.phase==='lobby'&&netOK()&&roomMembers.length){netT+=dt;if(netT>=1){netT=0;netSend(Object.assign({t:'state',lb:1,ch:S.char,x:0,y:0,z:0,ry:0,anim:'idle',weapon:'soco',alive:true},S.hosting?sqPack():{}));}}
 }
 function openFriends(msg){$('lobby').hidden=true;$('friendsScr').hidden=false;renderFriends(msg);}
 function renderFriends(msg){
